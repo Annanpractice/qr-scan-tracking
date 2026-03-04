@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QR Scan Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .card { border: 1px solid #e5e5e5; border-radius: 12px; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
+    th { position: sticky; top: 0; background: #fff; }
+    .tableWrap { max-height: 420px; overflow: auto; }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .stat { padding: 12px 14px; border: 1px solid #eee; border-radius: 10px; min-width: 180px; }
+    .stat .k { font-size: 12px; color: #666; }
+    .stat .v { font-size: 22px; font-weight: 650; }
+    canvas { width: 100% !important; height: 320px !important; }
+  </style>
+
+  <!-- CSV parser -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <h1>QR Scan Dashboard</h1>
+  <div class="muted" id="status">Loading…</div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h3 style="margin-top:0;">Scans per day</h3>
+      <canvas id="chartByDay"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Scans by QR ID</h3>
+      <canvas id="chartByQr"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-top:0;">Latest scans</h3>
+    <div class="tableWrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>timestamp</th>
+            <th>qr_id</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const CSV_URL = "https://raw.githubusercontent.com/Annapractice/qr-scan-tracking/main/scans.csv";
+
+  const statusEl = document.getElementById("status");
+  const statsEl = document.getElementById("stats");
+
+  function isoToDay(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0,10);
+  }
+
+  function countBy(arr, keyFn) {
+    const m = new Map();
+    for (const x of arr) {
+      const k = keyFn(x);
+      if (k == null || k === "") continue;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  }
+
+  function mapToSortedLabelsAndValues(map) {
+    const entries = Array.from(map.entries());
+    entries.sort((a,b) => (a[0] > b[0] ? 1 : -1));
+    return { labels: entries.map(e => e[0]), values: entries.map(e => e[1]) };
+  }
+
+  function renderStats(rows) {
+    const total = rows.length;
+    const days = countBy(rows, r => isoToDay(r.timestamp));
+    const uniqueDays = days.size;
+
+    const last = rows
+      .map(r => ({...r, t: new Date(r.timestamp).getTime()}))
+      .filter(r => !Number.isNaN(r.t))
+      .sort((a,b) => b.t - a.t)[0];
+
+    const stats = [
+      { k: "Total scans", v: total.toLocaleString() },
+      { k: "Days with scans", v: uniqueDays.toLocaleString() },
+      { k: "Last scan (UTC)", v: last ? new Date(last.t).toISOString().replace("T"," ").slice(0,19) : "—" },
+      { k: "Last QR ID", v: last?.qr_id || "—" },
+    ];
+
+    statsEl.innerHTML = stats.map(s => `
+      <div class="stat">
+        <div class="k">${s.k}</div>
+        <div class="v">${s.v}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderTable(rows) {
+    const tbody = document.querySelector("#tbl tbody");
+    const sorted = [...rows].sort((a,b) => {
+      const ta = new Date(a.timestamp).getTime();
+      const tb = new Date(b.timestamp).getTime();
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return tb - ta;
+    });
+
+    const show = sorted.slice(0, 200);
+    tbody.innerHTML = show.map(r => `
+      <tr>
+        <td>${(r.timestamp || "").toString()}</td>
+        <td>${(r.qr_id || "").toString()}</td>
+      </tr>
+    `).join("");
+  }
+
+  let chartDay, chartQr;
+
+  function renderCharts(rows) {
+    const byDay = countBy(rows, r => isoToDay(r.timestamp));
+    const dayData = mapToSortedLabelsAndValues(byDay);
+
+    const byQr = countBy(rows, r => (r.qr_id || "").trim());
+    const qrEntries = Array.from(byQr.entries()).sort((a,b) => b[1] - a[1]).slice(0, 20);
+    const qrLabels = qrEntries.map(e => e[0]);
+    const qrValues = qrEntries.map(e => e[1]);
+
+    const ctxDay = document.getElementById("chartByDay");
+    const ctxQr = document.getElementById("chartByQr");
+
+    chartDay?.destroy();
+    chartQr?.destroy();
+
+    chartDay = new Chart(ctxDay, {
+      type: "bar",
+      data: { labels: dayData.labels, datasets: [{ label: "Scans", data: dayData.values }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    chartQr = new Chart(ctxQr, {
+      type: "bar",
+      data: { labels: qrLabels, datasets: [{ label: "Scans", data: qrValues }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  function load() {
+    statusEl.textContent = "Loading CSV…";
+
+    Papa.parse(CSV_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = (results.data || []).filter(r => r.timestamp);
+        statusEl.textContent = `Loaded ${rows.length.toLocaleString()} scans from CSV.`;
+
+        renderStats(rows);
+        renderCharts(rows);
+        renderTable(rows);
+      },
+      error: (err) => {
+        console.error(err);
+        statusEl.textContent = "Failed to load CSV. Check the CSV_URL and that the repo/file is public.";
+      }
+    });
+  }
+
+  load();
+</script>
+</body>
+</html>
