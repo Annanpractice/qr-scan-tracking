@@ -1,33 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>QR Scan</title>
-
 <script>
+
+const formURL =
+"https://docs.google.com/forms/d/e/1FAIpQLSeuQQll58ik-CL53JhMKMP-HqVzFaYPYw0BqSlWDyB5uSry_w/formResponse";
 
 const destination =
 "https://greencroft.webgp.com/react-consult-contraception-review?codeName=LTC_CEP";
 
-function logScan(){
-
-const now = new Date().toISOString();
-const qr = "poster";
-
-console.log(now, qr);
-
-window.location.href = destination;
-
-}
-
-logScan();
+fetch(formURL, {
+  method: "POST",
+  mode: "no-cors",
+  body: new FormData()
+}).then(() => {
+  window.location.href = destination;
+});
 
 </script>
-
 </head>
-
 <body>
-
 Logging scan...
-
 </body>
 </html>
