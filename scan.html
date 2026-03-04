@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>QR Scan</title>
+
+<script>
+
+const destination =
+"https://greencroft.webgp.com/react-consult-contraception-review?codeName=LTC_CEP";
+
+function logScan(){
+
+const now = new Date().toISOString();
+const qr = "poster";
+
+console.log(now, qr);
+
+window.location.href = destination;
+
+}
+
+logScan();
+
+</script>
+
+</head>
+
+<body>
+
+Logging scan...
+
+</body>
+</html>
