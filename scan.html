@@ -9,10 +9,13 @@ const formURL =
 const destination =
 "https://greencroft.webgp.com/react-consult-contraception-review?codeName=LTC_CEP";
 
+const formData = new FormData();
+formData.append("entry.1919635446","poster");
+
 fetch(formURL, {
   method: "POST",
   mode: "no-cors",
-  body: new FormData()
+  body: formData
 }).then(() => {
   window.location.href = destination;
 });
