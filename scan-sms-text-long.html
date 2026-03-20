@@ -1,8 +1,14 @@
-<!DOCTYPE html>
-<html><head><script>
+<script>
 const formURL="https://docs.google.com/forms/d/e/1FAIpQLSeuQQll58ik-CL53JhMKMP-HqVzFaYPYw0BqSlWDyB5uSry_w/formResponse";
 const destination="https://northsurgery.webgp.com/react-consult-contraception-review?codeName=LTC_CEP";
+
 const formData=new FormData();
-formData.append("entry.1919635446","sms-text-long");
-fetch(formURL,{method:"POST",mode:"no-cors",body:formData}).then(()=>{window.location.href=destination;});
-</script></head><body>Logging scan...</body></html>
+formData.append("entry.1919635446","letter");
+
+fetch(formURL,{method:"POST",mode:"no-cors",body:formData})
+.finally(()=>{
+setTimeout(()=>{
+window.location.href=destination;
+},500);
+});
+</script>
